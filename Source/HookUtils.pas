@@ -82,9 +82,9 @@ const
   defAllocMemPageSize   = 4096;
 
 type
-{$IF CompilerVersion < 23}
+{$IFNDEF FPC} {$IF CompilerVersion < 23}
   NativeUInt = LongWord;
-{$IFEND}
+{$IFEND} {$ENDIF}
 
   TJMPCode = packed record
 {$IFDEF USELONGJMP}
@@ -124,10 +124,12 @@ type
 ////////////////////////////////////////////////////////////////////////////////
 
 {$IFDEF CPUX64}
-  {$L 'LDE64.w64'}
+  {$L 'Win64\LDE64.o'}
+{$ELSE} {$IFDEF FPC}
+  {$L 'Win32\LDE64.o'}
 {$ELSE}
-  {$L 'LDE64.w32'}
-{$ENDIF}
+  {$L 'Win32\LDE64.obj'}
+{$ENDIF} {$ENDIF}
 
 ////////////////////////////////////////////////////////////////////////////////
 //ÐÞ¸Ä£ºLsuper 2016.10.01

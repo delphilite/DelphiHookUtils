@@ -44,10 +44,10 @@ implementation
 uses
   Windows, HookUtils;
 
-{$IF CompilerVersion < 23}
+{$IFNDEF FPC} {$IF CompilerVersion < 23}
 type
   NativeUInt = LongWord;
-{$IFEND}
+{$IFEND} {$ENDIF}
 
 ////////////////////////////////////////////////////////////////////////////////
 //Éè¼Æ: Lsuper 2016.10.01
