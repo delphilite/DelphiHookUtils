@@ -119,24 +119,36 @@ type
 
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
-//功能：引入 LDE64 长度反编译引擎
+//功能：引入 LDE64 长度反编译引擎 ShellCode
 //参数：
 ////////////////////////////////////////////////////////////////////////////////
-
+const
 {$IFDEF CPUX64}
-  {$L 'Win64\LDE64.o'}
-{$ELSE} {$IFDEF FPC}
-  {$L 'Win32\LDE64.o'}
+  {$I 'HookUtils.64.inc'}
 {$ELSE}
-  {$L 'Win32\LDE64.obj'}
-{$ENDIF} {$ENDIF}
+  {$I 'HookUtils.32.inc'}
+{$ENDIF}
 
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
 //功能：LDE64 长度反编译引擎函数定义
 //参数：
+//注意：x64 下需要处理 DEP 问题
 ////////////////////////////////////////////////////////////////////////////////
-function LDE(lpData: Pointer; arch: LongWord): NativeUInt; stdcall; external;
+function LDE(lpData: Pointer; arch: LongWord): NativeUInt;
+var
+  D: Pointer;
+  F: LongWord;
+  M: TMemoryBasicInformation;
+  P: function (lpData: Pointer; arch: LongWord): NativeUInt; stdcall;
+begin
+  D := @defLde64ShellCode;
+  if VirtualQuery(D, M, SizeOf(M)) <> 0 then
+    if M.Protect <> PAGE_EXECUTE_WRITECOPY then
+      VirtualProtect(D, SizeOf(defLde64ShellCode), PAGE_EXECUTE_WRITECOPY, @F);
+  P := D;
+  Result := P(lpData, arch);
+end;
 
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
