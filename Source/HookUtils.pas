@@ -364,7 +364,7 @@ var
   newProtected, oldProtected: DWORD;
 begin
   Result := False;
-  if (AOldProc = nil) then
+  if AOldProc = nil then
     Exit;
   backCodeSize := oldProc^.BackUpCodeSize;
   newProc := PNewProc(oldProc^.OldFuncAddr);
@@ -380,6 +380,7 @@ begin
   // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   AOldProc := nil;
+  Result := True;
 end;
 
 end.

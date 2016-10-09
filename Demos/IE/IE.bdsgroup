@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+  <PersonalityInfo>
+    <Option>
+      <Option Name="Personality">Default.Personality</Option>
+      <Option Name="ProjectType"></Option>
+      <Option Name="Version">1.0</Option>
+      <Option Name="GUID">{74A80963-C1EC-4EC2-BA80-4AE023AE7131}</Option>
+    </Option>
+  </PersonalityInfo>
+  <Default.Personality>
+    <Projects>
+      <Projects Name="Dll.dll">Dll.bdsproj</Projects>
+      <Projects Name="Exe.exe">Exe.bdsproj</Projects>
+      <Projects Name="Targets">Dll.dll Exe.exe</Projects>
+    </Projects>
+    <Dependencies/>
+  </Default.Personality>
+</BorlandProject>
