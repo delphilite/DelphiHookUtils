@@ -254,6 +254,7 @@ end;
 //功能: 替换原有过程指针，并保留原有指针
 //参数：ATargetProc：被替换过程指针， NewProc：新的过程指针。
 //      OldProc: 被替换过程的备份过程指针（和原来的不是一个）
+//注意：对 Delphi 的 bpl 类函数需要 FixFunc 查找真正的函数地址
 //注意：需要判断是否 Win8 的 jmp xxx; int 3; ... 的特殊精简模式
 //注意：64 位中会有一种情况失败，就是 VirtualAlloc 不能在被Hook函数地址正负 2Gb
 //      范围内分配到内存。不过这个可能微乎其微，几乎不可能发生
@@ -264,15 +265,27 @@ function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolea
   type
     TJmpCode = packed record
       Code: Word;                 // 间接跳转指定，为 $25FF
-      Addr: ^Pointer;             // 跳转指针地址，指向保存目标地址的指针
+{$IFDEF CPUX64}
+      RelOffset: Int32;           // JMP QWORD PTR [RIP + RelOffset]
+{$ELSE}
+      Addr: PPointer;             // JMP DWORD PTR [JMPPtr] 跳转指针地址，指向保存目标地址的指针
+{$ENDIF}
     end;
     PJmpCode = ^TJmpCode;
   const
     csJmp32Code = $25FF;
+  var
+    P: PPointer;
   begin
     if PJmpCode(ATargetProc)^.Code = csJmp32Code then
     begin
-      ATargetProc := PJmpCode(ATargetProc)^.Addr^;
+{$IFDEF CPUX64}
+      P := Pointer(NativeUInt(ATargetProc) + PJmpCode(ATargetProc)^.RelOffset + SizeOf(TJmpCode));
+      ATargetProc := P^;
+{$ELSE}
+      P := PJmpCode(ATargetProc)^.Addr;
+      ATargetProc := P^;
+{$ENDIF}
       FixFunc();
     end;
   end;
