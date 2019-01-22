@@ -1,0 +1,33 @@
+object MainForm: TMainForm
+  Left = 0
+  Top = 0
+  Caption = 'Form1'
+  ClientHeight = 260
+  ClientWidth = 424
+  FormFactor.Width = 320
+  FormFactor.Height = 480
+  FormFactor.Devices = [Desktop]
+  DesignerMasterStyle = 0
+  object cbHookObject: TCheckBox
+    Position.X = 112.000000000000000000
+    Position.Y = 160.000000000000000000
+    Size.Width = 200.000000000000000000
+    Size.Height = 17.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 1
+    Text = 'Hook Method'
+    OnClick = cbHookObjectClick
+    Left = 112
+    Top = 160
+  end
+  object btnTestObject: TButton
+    Position.X = 114.000000000000000000
+    Position.Y = 123.000000000000000000
+    Size.Width = 100.000000000000000000
+    Size.Height = 22.000000000000000000
+    Size.PlatformDefault = False
+    TabOrder = 2
+    Text = 'Test Method'
+    OnClick = btnTestObjectClick
+  end
+end

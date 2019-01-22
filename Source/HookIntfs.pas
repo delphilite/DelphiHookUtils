@@ -37,17 +37,20 @@ interface
 
 function HookInterface(var AInterface; AMethodIndex: Integer; ANewProc: Pointer;
   out AOldProc: Pointer): Boolean;
+function UnHookInterface(var AOldProc: Pointer): Boolean;
+
 function CalcInterfaceMethodAddr(var AInterface; AMethodIndex: Integer): Pointer;
 
 implementation
 
 uses
-  Windows, HookUtils;
+  HookUtils;
 
-{$IFNDEF FPC} {$IF CompilerVersion < 23}
 type
+{$IFNDEF FPC} {$IF CompilerVersion < 23}
   NativeUInt = LongWord;
 {$IFEND} {$ENDIF}
+  PDWORD = ^LongWord;
 
 ////////////////////////////////////////////////////////////////////////////////
 //Éè¼Æ: Lsuper 2016.10.01
@@ -113,8 +116,16 @@ end;
 ////////////////////////////////////////////////////////////////////////////////
 function HookInterface(var AInterface; AMethodIndex: Integer;
   ANewProc: Pointer; out AOldProc: Pointer): Boolean;
+var
+  P: Pointer;
 begin
-  Result := HookProc(CalcInterfaceMethodAddr(AInterface, AMethodIndex), ANewProc, AOldProc);
+  P := CalcInterfaceMethodAddr(AInterface, AMethodIndex);
+  Result := HookUtils.HookProc(P, ANewProc, AOldProc);
+end;
+
+function UnHookInterface(var AOldProc: Pointer): Boolean;
+begin
+  Result := HookUtils.UnHookProc(AOldProc);
 end;
 
 end.
