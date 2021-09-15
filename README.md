@@ -29,4 +29,4 @@ Delphi API Hook 工具项目
 
 ## 其他
 
-初步 Delphi 2007-10.3, Lazarus/Typhon/FPC/FMX x86/x64 for Win 一切正常，大家有问题及时反馈 ！？
+初步 Delphi 2007-11, Lazarus/Typhon/FPC/FMX x86/x64 for Win 一切正常，大家有问题及时反馈 ！？

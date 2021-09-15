@@ -6,7 +6,7 @@
 {   ±¸×¢£º                                                                }
 {   ÉóºË£º                                                                }
 {                                                                         }
-{   Copyright (c) 1998-2016 Super Studio                                  }
+{   Copyright (c) 1998-2021 Super Studio                                  }
 {                                                                         }
 { *********************************************************************** }
 {                                                                         }
@@ -32,6 +32,8 @@ unit HookIntfs;
 {$IFDEF FPC}
   {$MODE Delphi}
 {$ENDIF}
+
+{$RANGECHECKS OFF}
 
 interface
 

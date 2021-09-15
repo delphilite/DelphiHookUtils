@@ -6,7 +6,7 @@
 {   备注：                                                                }
 {   审核：                                                                }
 {                                                                         }
-{   Copyright (c) 1998-2016 Super Studio                                  }
+{   Copyright (c) 1998-2021 Super Studio                                  }
 {                                                                         }
 { *********************************************************************** }
 {                                                                         }
@@ -58,6 +58,8 @@ unit HookUtils;
 {$IFDEF FPC}
   {$MODE Delphi}
 {$ENDIF}
+
+{$RANGECHECKS OFF}
 
 {.$DEFINE USEINT3} { 在机器指令中插入 INT3，断点指令方便调试 }
 
@@ -203,9 +205,9 @@ var
   sSysInfo: TSystemInfo;
 begin
   GetSystemInfo(sSysInfo);
-  Min := NativeUInt(APtr) - 2 * GB;
-  if Min <= 0 then
-    Min := 1;
+  if NativeUInt(APtr) <= 2 * GB then
+    Min := 1
+  else Min := NativeUInt(APtr) - 2 * GB;
   Max := NativeUInt(APtr) + 2 * GB;
 
   Result := nil;
