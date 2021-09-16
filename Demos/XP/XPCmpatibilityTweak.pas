@@ -37,9 +37,15 @@ begin
 end;
 
 initialization
-  HookProc(@Winapi.Windows.GetTickCount64, @GetTickCount64CallBack, @GetTickCount64Next);
+  if TOSVersion.Major < 6 then
+  begin
+    HookProc(@Winapi.Windows.GetTickCount64, @GetTickCount64CallBack, @GetTickCount64Next);
+  end;
 
 finalization
-  UnHookProc(@GetTickCount64Next);
+  if Assigned(@GetTickCount64Next) then
+  begin
+    UnHookProc(@GetTickCount64Next);
+  end;
 
 end.
