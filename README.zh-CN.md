@@ -3,6 +3,9 @@
 ![Version](https://img.shields.io/badge/version-v1.0-yellow.svg)
 ![License](https://img.shields.io/github/license/delphilite/DelphiHookUtils)
 ![Lang](https://img.shields.io/github/languages/top/delphilite/DelphiHookUtils.svg)
+![stars](https://img.shields.io/github/stars/delphilite/DelphiHookUtils.svg)
+
+[English](./README.md) | [Chinese](./README.zh-CN.md)
 
 Delphi API Hook 工具项目
 

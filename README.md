@@ -3,6 +3,9 @@
 ![Version](https://img.shields.io/badge/version-v1.0-yellow.svg)
 ![License](https://img.shields.io/github/license/delphilite/DelphiHookUtils)
 ![Lang](https://img.shields.io/github/languages/top/delphilite/DelphiHookUtils.svg)
+![stars](https://img.shields.io/github/stars/delphilite/DelphiHookUtils.svg)
+
+[English](./README.md) | [Chinese](./README.zh-CN.md)
 
 DelphiHookUtils is a utility library for code hooking, inspired by wr960204's [delphi-hook-library](https://code.google.com/p/delphi-hook-library). This library replaces BeaEngine with [LDE64](https://github.com/BeaEngine/lde64) to reduce size, along with additional modifications and improvements.
 
