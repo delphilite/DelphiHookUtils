@@ -1,0 +1,11 @@
+{
+	"id": "{DE08E400-269C-49BC-997A-739F390A358A}",
+	"name": "DelphiHookUtils",
+	"picture": "Doc\\Logo.png",
+	"license_type": "MPL-2.0",
+	"license_file": "License",
+	"platforms": "Win32;Win64",
+	"first_version": "1.0.0",
+	"package_compiler_min": 15,
+	"compiler_min": 15
+}
