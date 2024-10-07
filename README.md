@@ -1,32 +1,40 @@
 ﻿# DelphiHookUtils
 
-Delphi API Hook 工具项目
+![Version](https://img.shields.io/badge/version-v1.0-yellow.svg)
+![License](https://img.shields.io/github/license/delphilite/DelphiHookUtils)
+![Lang](https://img.shields.io/github/languages/top/delphilite/DelphiHookUtils.svg)
 
-![LOGO](https://github.com/delphilite/DelphiHookUtils/raw/master/Doc/Logo.jpg)
+DelphiHookUtils is a utility library for code hooking, inspired by wr960204's [delphi-hook-library](https://code.google.com/p/delphi-hook-library). This library replaces BeaEngine with [LDE64](https://github.com/BeaEngine/lde64) to reduce size, along with additional modifications and improvements.
 
-## 由来
+## Features
+* Support **x86** and **x64** architecture.
+* Support hooking interfaces methods by **MethodIndex**.
+* Support hooking Object Method.
+* Support Delphi 7-12 x86/x64 for Win.
+* Support Lazarus/FPC x86/x64 for Win.
 
-国庆帝都雾霾，一直闷家里发霉，也终于有时间搞搞自己的东东了！
+## Installation
+To install the DelphiHookUtils binding, follow these steps:
 
-年初基于 wr960204 武稀松大哥的 HookUtils 写了个 x64 的东东，效果很 8 错，不过呢，这个实现基于 BeaEngine 的静态库，额外胖了几百 K，对于我这只有“洁癖”的程序员，着实不爽！
+1. Clone the repository:
+    ```sh
+    git clone https://github.com/delphilite/DelphiHookUtils.git
+    ```
 
-之前关注过 BeaEngine 官网还有个 LDE64（Length Disassembler Engine）的东东，事实上对于武大哥那份 Hook 的实现，BeaEngine 只是为了查找足够的“代码间隙”，其实单个 LDE 应该是 ok 的！
+2. Add the DelphiHookUtils\Source directory to the project or IDE's search path.
 
-遂，花了两天时间搞了这个东东：
+## Usage
+For more examples, refer to the ones under the Demos folder in the library.
 
-[https://github.com/delphilite/DelphiHookUtils](https://github.com/delphilite/DelphiHookUtils)
+## Documentation
+For more information, refer to the wiki documentation below.
 
-## 实现
+1. [Windows API Hooking Techniques](https://en.wikipedia.org/wiki/Hooking) - General overview of hooking methods in software.
+2. [Microsoft Detours](https://github.com/microsoft/Detours/wiki) - Microsoft's library for intercepting Win32 functions.
+3. [MahdiSafsafi DDetours](https://github.com/MahdiSafsafi/DDetours/wiki) - MahdiSafsafi's library for intercepting Win32 functions.
 
-基于 LDE64 相对 BeaEngine 的优势非常明显，新 HookUtils 代码编译大约 10K 左右，相对武大哥“原版”，新版 HookUtils 主要修改：
+## Contributing
+Contributions are welcome! Please fork this repository and submit pull requests with your improvements.
 
- 1. 参考 wr960204 武稀松 的原始实现： 
-[https://code.google.com/p/delphi-hook-library](https://code.google.com/p/delphi-hook-library) 
- 2. 修改 BeaEngine 引擎为 LDE64 长度反编译引擎，大幅降低大小
-[https://github.com/BeaEngine/lde64](https://github.com/BeaEngine/lde64)
- 3. 去除原始实现对多线程冻结的处理，通常建议 Hook/Unhook 放到单元初始化、析构中做，否则可能因改写内存没挂起其他线程造成错误 
- 4. 由 HookUtils 中拆分 COM 相关函数至 HookIntfs 单元
-
-## 其他
-
-初步 Delphi 2007-11, Lazarus/Typhon/FPC/FMX x86/x64 for Win 一切正常，大家有问题及时反馈 ！？
+## License
+This project is licensed under the Mozilla Public License 2.0. See the [LICENSE](LICENSE) file for details.
