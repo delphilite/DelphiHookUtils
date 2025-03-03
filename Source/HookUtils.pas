@@ -81,7 +81,7 @@ uses
   Windows;
 
 const
-  defAllocMemPageSize   = 4096;
+  GPageSize: Integer    = 4096;
 
 type
 {$IFNDEF FPC} {$IF CompilerVersion < 23}
@@ -92,10 +92,10 @@ type
 {$IFDEF USELONGJMP}
     JMP: Word;
     JmpOffset: Int32;
-    Addr: UIntPtr;
+    Addr: NativeUInt;
 {$ELSE}
     JMP: Byte;
-    Addr: UINT_PTR;
+    Addr: NativeUInt;
 {$ENDIF}
   end;
   PJMPCode = ^TJMPCode;
@@ -195,37 +195,36 @@ const
 {$ELSE}
   defAllocationType     = MEM_COMMIT or MEM_RESERVE;
 {$ENDIF}
-  KB: Int64 = 1024;
-  MB: Int64 = 1024 * 1024;
   GB: Int64 = 1024 * 1024 * 1024;
 var
-  mbi: TMemoryBasicInformation;
-  Min, Max: Int64;
+  mInfo: TMemoryBasicInformation;
+  nMin, nMax: Int64;
+  nGranularity: LongWord;
   pbAlloc: Pointer;
-  sSysInfo: TSystemInfo;
+  sInfo: TSystemInfo;
 begin
-  GetSystemInfo(sSysInfo);
-  if NativeUInt(APtr) <= 2 * GB then
-    Min := 1
-  else Min := NativeUInt(APtr) - 2 * GB;
-  Max := NativeUInt(APtr) + 2 * GB;
-
   Result := nil;
-  pbAlloc := Pointer(Min);
-  while NativeUInt(pbAlloc) < Max do
+
+  GetSystemInfo(sInfo);
+  if NativeUInt(APtr) <= 2 * GB then
+    nMin := 1
+  else nMin := NativeUInt(APtr) - 2 * GB;
+  nMax := NativeUInt(APtr) + 2 * GB;
+
+  pbAlloc := Pointer(nMin);
+  while NativeUInt(pbAlloc) < nMax do
   begin
-    if (VirtualQuery(pbAlloc, mbi, SizeOf(mbi)) = 0) then
+    if (VirtualQuery(pbAlloc, mInfo, SizeOf(mInfo)) = 0) then
       Break;
-    if ((mbi.State or MEM_FREE) = MEM_FREE) and (mbi.RegionSize >= ASize) and
-      (mbi.RegionSize >= sSysInfo.dwAllocationGranularity) then
+    nGranularity := sInfo.dwAllocationGranularity;
+    if ((mInfo.State or MEM_FREE) = MEM_FREE) and (mInfo.RegionSize >= ASize) and (mInfo.RegionSize >= nGranularity) then
     begin
-      pbAlloc := PByte(NativeUInt((NativeUInt(pbAlloc) + (sSysInfo.dwAllocationGranularity - 1)) div
-        sSysInfo.dwAllocationGranularity) * sSysInfo.dwAllocationGranularity);
+      pbAlloc := PByte(NativeUInt((NativeUInt(pbAlloc) + (nGranularity - 1)) div nGranularity) * nGranularity);
       Result := VirtualAlloc(pbAlloc, ASize, defAllocationType, PAGE_EXECUTE_READWRITE);
       if Result <> nil then
         Break;
     end;
-    pbAlloc := Pointer(NativeUInt(mbi.BaseAddress) + mbi.RegionSize);
+    pbAlloc := Pointer(NativeUInt(mInfo.BaseAddress) + mInfo.RegionSize);
   end;
 end;
 
@@ -238,7 +237,7 @@ end;
 function HookProc(const ATargetModule, ATargetProc: string; ANewProc: Pointer;
   out AOldProc: Pointer): Boolean;
 var
-  nHandle: THandle;
+  nHandle: NativeUInt;
   pProc: Pointer;
 begin
   Result := False;
@@ -310,59 +309,53 @@ begin
   if backCodeSize < 0 then
     Exit;
 
-  if not VirtualProtect(ATargetProc, backCodeSize, PAGE_EXECUTE_READWRITE,
-    oldProtected) then
+  if not VirtualProtect(ATargetProc, backCodeSize, PAGE_EXECUTE_READWRITE, oldProtected) then
     Exit;
 
-  AOldProc := TryAllocMem(ATargetProc, defAllocMemPageSize);
-  // AOldProc := VirtualAlloc(nil, defAllocMemPageSize, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+  AOldProc := TryAllocMem(ATargetProc, GPageSize);
   if AOldProc = nil then
     Exit;
 
-  FillMemory(AOldProc, SizeOf(TOldProc), $90);
+  FillChar(AOldProc^, SizeOf(TOldProc), $90);
   oldProc := POldProc(AOldProc);
 {$IFDEF USEINT3}
   oldProc.Int3OrNop := $CC;
 {$ENDIF}
   oldProc.BackUpCodeSize := backCodeSize;
   oldProc.OldFuncAddr := ATargetProc;
-  CopyMemory(@oldProc^.BackCode, ATargetProc, backCodeSize);
+  Move(ATargetProc^, oldProc^.BackCode, backCodeSize);
 {$IFDEF USELONGJMP}
   JmpAfterBackCode := PJMPCode(@oldProc^.BackCode[backCodeSize]);
 
   oldProc^.JmpRealFunc.JMP := $25FF;
   oldProc^.JmpRealFunc.JmpOffset := 0;
-  oldProc^.JmpRealFunc.Addr := UIntPtr(Int64(ATargetProc) + backCodeSize);
+  oldProc^.JmpRealFunc.Addr := NativeUInt(ATargetProc) + backCodeSize;
 
   JmpAfterBackCode^.JMP := $25FF;
   JmpAfterBackCode^.JmpOffset := 0;
-  JmpAfterBackCode^.Addr := UIntPtr(Int64(ATargetProc) + backCodeSize);
+  JmpAfterBackCode^.Addr := NativeUInt(ATargetProc) + backCodeSize;
 
   oldProc^.JmpHookFunc.JMP := $25FF;
   oldProc^.JmpHookFunc.JmpOffset := 0;
-  oldProc^.JmpHookFunc.Addr := UIntPtr(ANewProc);
+  oldProc^.JmpHookFunc.Addr := NativeUInt(ANewProc);
 {$ELSE}
   oldProc^.JmpRealFunc.JMP := $E9;
-  oldProc^.JmpRealFunc.Addr := (NativeInt(ATargetProc) + backCodeSize) -
-    (NativeInt(@oldProc^.JmpRealFunc) + 5);
+  oldProc^.JmpRealFunc.Addr := NativeInt(ATargetProc) + backCodeSize - (NativeInt(@oldProc^.JmpRealFunc) + 5);
 
   oldProc^.JmpHookFunc.JMP := $E9;
-  oldProc^.JmpHookFunc.Addr := NativeInt(ANewProc) -
-    (NativeInt(@oldProc^.JmpHookFunc) + 5);
+  oldProc^.JmpHookFunc.Addr := NativeInt(ANewProc) - (NativeInt(@oldProc^.JmpHookFunc) + 5);
 {$ENDIF}
-  // Init
-  FillMemory(ATargetProc, backCodeSize, $90);
+  // 初始化跳转
+  FillChar(ATargetProc^, backCodeSize, $90);
 
   newProc^.JMP := $E9;
-  newProc^.Addr := NativeInt(@oldProc^.JmpHookFunc) -
-    (NativeInt(@newProc^.JMP) + 5);;
-  // NativeInt(ANewProc) - (NativeInt(@newProc^.JMP) + 5);
+  newProc^.Addr := NativeInt(@oldProc^.JmpHookFunc) - (NativeInt(@newProc^.JMP) + 5);
 
   if not VirtualProtect(ATargetProc, backCodeSize, oldProtected, newProtected) then
     Exit;
   // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
-  FlushInstructionCache(GetCurrentProcess(), oldProc, defAllocMemPageSize);
+  FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
   Result := True;
 end;
 
@@ -387,11 +380,11 @@ begin
   if not VirtualProtect(newProc, backCodeSize, PAGE_EXECUTE_READWRITE, oldProtected) then
     Exit;
 
-  CopyMemory(newProc, @oldProc^.BackCode, oldProc^.BackUpCodeSize);
+  Move(oldProc^.BackCode, newProc^, oldProc^.BackUpCodeSize);
 
   if not VirtualProtect(newProc, backCodeSize, oldProtected, newProtected) then
     Exit;
-  VirtualFree(oldProc, defAllocMemPageSize, MEM_FREE);
+  VirtualFree(oldProc, GPageSize, MEM_FREE);
   // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   AOldProc := nil;

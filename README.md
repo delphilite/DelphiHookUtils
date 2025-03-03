@@ -16,7 +16,7 @@ DelphiHookUtils is a utility library for code hooking, inspired by wr960204's [d
 * Support Delphi 7-12 x86/x64 for Win.
 * Support Lazarus/FPC x86/x64 for Win.
 
-## Installation
+## Installation: Manual
 To install the DelphiHookUtils binding, follow these steps:
 
 1. Clone the repository:
@@ -25,6 +25,11 @@ To install the DelphiHookUtils binding, follow these steps:
     ```
 
 2. Add the DelphiHookUtils\Source directory to the project or IDE's search path.
+
+## Installation: Delphinus-Support
+DelphiHookUtils should now be listed in [Delphinus package manager](https://github.com/Memnarch/Delphinus/wiki/Installing-Delphinus).
+
+Be sure to restart Delphi after installing via Delphinus otherwise the units may not be found in your test projects.
 
 ## Usage
 For more examples, refer to the ones under the Demos folder in the library.
