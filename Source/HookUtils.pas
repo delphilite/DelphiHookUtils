@@ -1,52 +1,52 @@
+﻿{ *********************************************************************** }
+{                                                                         }
+{   Delphi 通用 Hook 库，支持 Windows x86/x64, Ansi/Unicode               }
+{                                                                         }
+{   设计：Lsuper 2016.10.01                                               }
+{   备注：                                                                }
+{   审核：                                                                }
+{                                                                         }
+{   Copyright (c) 1998-2025 Super Studio                                  }
+{                                                                         }
 { *********************************************************************** }
 {                                                                         }
-{   Delphi ͨ�� Hook �⣬֧�� Windows x86/x64, Ansi/Unicode               }
+{   注意：                                                                }
 {                                                                         }
-{   ��ƣ�Lsuper 2016.10.01                                               }
-{   ��ע��                                                                }
-{   ��ˣ�                                                                }
+{   1、Hook/Unhook 放到单元，初始化、析构中做，否则可能因改写内存没挂起   }
+{      其他线程的调用而造成错误                                           }
 {                                                                         }
-{   Copyright (c) 1998-2021 Super Studio                                  }
+{   限制：                                                                }
 {                                                                         }
-{ *********************************************************************** }
+{   1、限制：不能 Hook 代码大小小于 5 个字节的函数                        }
+{   2、限制：不能 Hook 前 5 个字节中有跳转指令的函数                      }
 {                                                                         }
-{   ע�⣺                                                                }
+{   希望使用的朋友们自己也具有一定的汇编或者逆向知识，Hook 函数前请确定   }
+{   该函数不属于上面两种情况                                              }
 {                                                                         }
-{   1��Hook/Unhook �ŵ���Ԫ����ʼ������������������������д�ڴ�û����   }
-{      �����̵߳ĵ��ö���ɴ���                                           }
-{                                                                         }
-{   ���ƣ�                                                                }
-{                                                                         }
-{   1�����ƣ����� Hook �����СС�� 5 ���ֽڵĺ���                        }
-{   2�����ƣ����� Hook ǰ 5 ���ֽ�������תָ��ĺ���                      }
-{                                                                         }
-{   ϣ��ʹ�õ��������Լ�Ҳ����һ���Ļ���������֪ʶ��Hook ����ǰ��ȷ��   }
-{   �ú��������������������                                              }
-{                                                                         }
-{   ���⹳ COM ������һ�����ɣ��������������ʱ����סĳ�� COM ���������  }
-{   ��Ҫ���� COM ���󴴽�ǰ�Լ��ȴ���һ���ö���Hook סȻ���ͷ����Լ���  }
-{   ����������������Ѿ����¹����ˣ������ǹ������ COM ���󴴽�ǰ��     }
+{   另外钩 COM 对象有一个技巧，如果你想在最早时机勾住某个 COM 对象可以在  }
+{   你要钩的 COM 对象创建前自己先创建一个该对象，Hook 住然后释放你自己的  }
+{   对象，这样这个函数已经被下钩子了，而且是钩在这个 COM 对象创建前的     }
 {                                                                         }
 { *********************************************************************** }
 {                                                                         }
 {   2016.10.01 - Lsuper                                                   }
 {                                                                         }
-{   1���ο� wr960204 ��ϡ�� ��ԭʼʵ�֣�                                  }
+{   1、参考 wr960204 武稀松 的原始实现：                                  }
 {      https://code.google.com/p/delphi-hook-library                      }
-{   2���޸� BeaEngine ����Ϊ LDE64 ���ȷ��������棬������ʹ�С           }
+{   2、修改 BeaEngine 引擎为 LDE64 长度反编译引擎，大幅降低大小           }
 {      https://github.com/BeaEngine/lde64                                 }
 {      http://www.beaengine.org/download/LDE64-x86.zip                    }
 {      http://www.beaengine.org/download/LDE64-x64.rar                    }
-{   3��ȥ��ԭʼʵ�ֶԶ��̶߳���Ĵ�����ͨ������ Hook/Unhook �ŵ���Ԫ      }
-{      ��ʼ������������������������д�ڴ�û���������߳���ɴ���         }
+{   3、去除原始实现对多线程冻结的处理，通常建议 Hook/Unhook 放到单元      }
+{      初始化、析构中做，否则可能因改写内存没挂起其他线程造成错误         }
 {                                                                         }
 { *********************************************************************** }
 {                                                                         }
-{   2012.02.01 - wr960204 ��ϡ�ɣ�http://www.raysoftware.cn               }
+{   2012.02.01 - wr960204 武稀松，http://www.raysoftware.cn               }
 {                                                                         }
-{   1��ʹ���˿�Դ�� BeaEngine ��������棬BeaEngine �ĺô��ǿ����� BCB �� }
-{      ��� OMF ��ʽ�� Obj��ֱ�����ӽ� dcu ��Ŀ���ļ��У��������� DLL   }
-{   2��BeaEngine ���棺                                                   }
+{   1、使用了开源的 BeaEngine 反汇编引擎，BeaEngine 的好处是可以用 BCB 编 }
+{      译成 OMF 格式的 Obj，直接链接进 dcu 或目标文件中，无须额外的 DLL   }
+{   2、BeaEngine 引擎：                                                   }
 {      https://github.com/BeaEngine/beaengine                             }
 {      http://beatrix2004.free.fr/BeaEngine/index1.php                    }
 {      http://www.beaengine.org/                                          }
@@ -61,7 +61,7 @@ unit HookUtils;
 
 {$RANGECHECKS OFF}
 
-{.$DEFINE USEINT3} { �ڻ���ָ���в��� INT3���ϵ�ָ������ }
+{.$DEFINE USEINT3} { 在机器指令中插入 INT3，断点指令方便调试 }
 
 interface
 
@@ -120,22 +120,22 @@ type
   PNewProc = ^TNewProc;
 
 ////////////////////////////////////////////////////////////////////////////////
-//�޸ģ�Lsuper 2016.10.01
-//���ܣ����� LDE64 ���ȷ��������� ShellCode
-//������
+//修改：Lsuper 2016.10.01
+//功能：引入 LDE64 长度反编译引擎 ShellCode
+//参数：
 ////////////////////////////////////////////////////////////////////////////////
 const
 {$IFDEF CPUX64}
-  {$I 'HookUtils.64.inc'}
+  {$I 'HookUtils.64.inc'} { from LDE64-x64.rar\LDE64x64.bin }
 {$ELSE}
-  {$I 'HookUtils.32.inc'}
+  {$I 'HookUtils.32.inc'} { from LDE64-x86.rar\LDE64-x86\LDE64.bin }
 {$ENDIF}
 
 ////////////////////////////////////////////////////////////////////////////////
-//�޸ģ�Lsuper 2016.10.01
-//���ܣ�LDE64 ���ȷ��������溯������
-//������
-//ע�⣺x64 ����Ҫ���� DEP ����
+//修改：Lsuper 2016.10.01
+//功能：LDE64 长度反编译引擎函数定义
+//参数：
+//注意：x64 下需要处理 DEP 问题
 ////////////////////////////////////////////////////////////////////////////////
 function LDE(lpData: Pointer; arch: LongWord): NativeUInt;
 var
@@ -153,9 +153,9 @@ begin
 end;
 
 ////////////////////////////////////////////////////////////////////////////////
-//�޸ģ�Lsuper 2016.10.01
-//���ܣ�������Ҫ���ǵĻ���ָ���С�������� LDE64 �������������ָ����м��п�
-//������
+//修改：Lsuper 2016.10.01
+//功能：计算需要覆盖的机器指令大小，借助了 LDE64 反汇编引擎以免指令被从中间切开
+//参数：
 ////////////////////////////////////////////////////////////////////////////////
 function CalcHookProcSize(AFunc: Pointer): Integer;
 const
@@ -171,6 +171,8 @@ var
   pCode: PByte;
 begin
   Result := 0;
+  if AFunc = nil then
+    Exit;
   pCode := AFunc;
   while Result < SizeOf(TNewProc) do
   begin
@@ -181,12 +183,12 @@ begin
 end;
 
 ////////////////////////////////////////////////////////////////////////////////
-//�޸ģ�Lsuper 2016.10.01
-//���ܣ�
-//������
-//ע�⣺������ָ��ָ�� APtr ������ 2Gb ���ڷ����ڴ棬32 λ�϶���������
-//      64 λ JMP ������Եģ��������� 32 λ���������Ա��뱣֤�µĺ����ھɺ���
-//      ������2GB�ڣ�����û����ת��������ת����
+//修改：Lsuper 2016.10.01
+//功能：
+//参数：
+//注意：尝试在指定指针 APtr 的正负 2Gb 以内分配内存，32 位肯定是这样的
+//      64 位 JMP 都是相对的，操作数是 32 位整数，所以必须保证新的函数在旧函数
+//      的正负2GB内，否则没法跳转到或者跳转回来
 ////////////////////////////////////////////////////////////////////////////////
 function TryAllocMem(APtr: Pointer; ASize: LongWord): Pointer;
 const
@@ -229,10 +231,10 @@ begin
 end;
 
 ////////////////////////////////////////////////////////////////////////////////
-//��ƣ�Lsuper 2016.10.01
-//���ܣ��ҽ� API
-//������
-//ע�⣺��� ATargetModule û�б� LoadLibrary �� Hook ��ʧ�ܣ��������ֹ� Load
+//设计：Lsuper 2016.10.01
+//功能：挂接 API
+//参数：
+//注意：如果 ATargetModule 没有被 LoadLibrary 下 Hook 会失败，建议先手工 Load
 ////////////////////////////////////////////////////////////////////////////////
 function HookProc(const ATargetModule, ATargetProc: string; ANewProc: Pointer;
   out AOldProc: Pointer): Boolean;
@@ -251,25 +253,25 @@ begin
 end;
 
 ////////////////////////////////////////////////////////////////////////////////
-//��ƣ�Lsuper 2016.10.01
-//���ܣ��滻ԭ�й���ָ�룬������ԭ��ָ��
-//������ATargetProc�����滻����ָ�룬 NewProc���µĹ���ָ�롣
-//      OldProc: ���滻���̵ı��ݹ���ָ�루��ԭ���Ĳ���һ����
-//ע�⣺�� Delphi �� bpl �ຯ����Ҫ FixFunc ���������ĺ�����ַ
-//ע�⣺��Ҫ�ж��Ƿ� Win8 �� jmp xxx; int 3; ... �����⾫��ģʽ
-//ע�⣺64 λ�л���һ�����ʧ�ܣ����� VirtualAlloc �����ڱ�Hook������ַ���� 2Gb
-//      ��Χ�ڷ��䵽�ڴ档�����������΢����΢�����������ܷ���
+//设计：Lsuper 2016.10.01
+//功能：替换原有过程指针，并保留原有指针
+//参数：ATargetProc：被替换过程指针， NewProc：新的过程指针。
+//      OldProc: 被替换过程的备份过程指针（和原来的不是一个）
+//注意：对 Delphi 的 bpl 类函数需要 FixFunc 查找真正的函数地址
+//注意：需要判断是否 Win8 的 jmp xxx; int 3; ... 的特殊精简模式
+//注意：64 位中会有一种情况失败，就是 VirtualAlloc 不能在被Hook函数地址正负 2Gb
+//      范围内分配到内存。不过这个可能微乎其微，几乎不可能发生
 ////////////////////////////////////////////////////////////////////////////////
 function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolean;
 
-  procedure FixFunc();
+  procedure FixFunc(MaxDepth: Integer = 10);
   type
     TJmpCode = packed record
-      Code: Word;                 // �����תָ����Ϊ $25FF
+      Code: Word;                 // 间接跳转指定，为 $25FF
 {$IFDEF CPUX64}
       RelOffset: Int32;           // JMP QWORD PTR [RIP + RelOffset]
 {$ELSE}
-      Addr: PPointer;             // JMP DWORD PTR [JMPPtr] ��תָ���ַ��ָ�򱣴�Ŀ���ַ��ָ��
+      Addr: PPointer;             // JMP DWORD PTR [JMPPtr] 跳转指针地址，指向保存目标地址的指针
 {$ENDIF}
     end;
     PJmpCode = ^TJmpCode;
@@ -278,6 +280,8 @@ function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolea
   var
     P: PPointer;
   begin
+    if MaxDepth <= 0 then
+      Exit;
     if PJmpCode(ATargetProc)^.Code = csJmp32Code then
     begin
 {$IFDEF CPUX64}
@@ -287,7 +291,7 @@ function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolea
       P := PJmpCode(ATargetProc)^.Addr;
       ATargetProc := P^;
 {$ENDIF}
-      FixFunc();
+      FixFunc(MaxDepth - 1);
     end;
   end;
 var
@@ -345,7 +349,7 @@ begin
   oldProc^.JmpHookFunc.JMP := $E9;
   oldProc^.JmpHookFunc.Addr := NativeInt(ANewProc) - (NativeInt(@oldProc^.JmpHookFunc) + 5);
 {$ENDIF}
-  // ��ʼ����ת
+  // 初始化跳转
   FillChar(ATargetProc^, backCodeSize, $90);
 
   newProc^.JMP := $E9;
@@ -353,16 +357,16 @@ begin
 
   if not VirtualProtect(ATargetProc, backCodeSize, oldProtected, newProtected) then
     Exit;
-  // ˢ�´������е�ָ��棬�����ⲿ��ָ�����ִ�е�ʱ��һ��
+  // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
   Result := True;
 end;
 
 ////////////////////////////////////////////////////////////////////////////////
-//��ƣ�Lsuper 2016.10.01
-//���ܣ��������
-//������OldProc���� HookProc �б����ָ��
+//设计：Lsuper 2016.10.01
+//功能：解除钩子
+//参数：OldProc：在 HookProc 中保存的指针
 ////////////////////////////////////////////////////////////////////////////////
 function UnHookProc(var AOldProc: Pointer): Boolean;
 var
@@ -384,8 +388,8 @@ begin
 
   if not VirtualProtect(newProc, backCodeSize, oldProtected, newProtected) then
     Exit;
-  VirtualFree(oldProc, GPageSize, MEM_FREE);
-  // ˢ�´������е�ָ��棬�����ⲿ��ָ�����ִ�е�ʱ��һ��
+  VirtualFree(oldProc, 0, MEM_RELEASE);
+  // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   AOldProc := nil;
   Result := True;
