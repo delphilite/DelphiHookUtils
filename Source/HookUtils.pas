@@ -1,12 +1,12 @@
 ﻿{ *********************************************************************** }
 {                                                                         }
-{   Delphi 通用 Hook 库，支持 Windows x86/x64, Ansi/Unicode               }
+{   Delphi 通用 Hook 库，支持 Windows x86/x64/ARM64EC, Ansi/Unicode       }
 {                                                                         }
 {   设计：Lsuper 2016.10.01                                               }
 {   备注：                                                                }
 {   审核：                                                                }
 {                                                                         }
-{   Copyright (c) 1998-2025 Super Studio                                  }
+{   Copyright (c) 1998-2026 Super Studio                                  }
 {                                                                         }
 { *********************************************************************** }
 {                                                                         }
@@ -23,11 +23,24 @@
 {   希望使用的朋友们自己也具有一定的汇编或者逆向知识，Hook 函数前请确定   }
 {   该函数不属于上面两种情况                                              }
 {                                                                         }
-{   另外钩 COM 对象有一个技巧，如果你想在最早时机勾住某个 COM 对象可以在  }
-{   你要钩的 COM 对象创建前自己先创建一个该对象，Hook 住然后释放你自己的  }
-{   对象，这样这个函数已经被下钩子了，而且是钩在这个 COM 对象创建前的     }
+{   注意：                                                                }
+{                                                                         }
+{   1、ARM64EC：进程中同时存在原生 ARM64 代码与被模拟的 x64 代码。对 x64  }
+{      目标仍采用 64 位长跳转方案，对原生 ARM64 目标则使用绝对跳转。      }
+{                                                                         }
+{   2、钩 COM 对象有一个技巧，如果你想在最早时机勾住某个 COM 对象可以在你 }
+{      要钩 COM 对象创建前自己先创建一个该对象，Hook 住然后释放你自己的对 }
+{      象，这样这个函数已经被下钩子了，而且是钩在这个 COM 对象创建前的    }
 {                                                                         }
 { *********************************************************************** }
+{                                                                         }
+{   2026.06.07 - Lsuper                                                   }
+{                                                                         }
+{   1、增加 Windows ARM64EC 支持。ARM64EC 进程同时存在原生 ARM64 与被模拟 }
+{      的 x64 代码，借助 ntdll!RtlIsEcCode 区分目标架构：                 }
+{    - 原生 ARM64 目标：采用 LDR X16/BR X16 绝对跳转，跳板内存须经        }
+{      VirtualAlloc2 携带 MEM_EXTENDED_PARAMETER_EC_CODE 标记为 EC 代码   }
+{    - x64 目标（系统 DLL 导出等）：沿用 64 位长跳转方案                  }
 {                                                                         }
 {   2016.10.01 - Lsuper                                                   }
 {                                                                         }
@@ -61,8 +74,6 @@ unit HookUtils;
 
 {$RANGECHECKS OFF}
 
-{.$DEFINE USEINT3} { 在机器指令中插入 INT3，断点指令方便调试 }
-
 interface
 
 function HookProc(ATargetProc, ANewProc: Pointer;
@@ -73,9 +84,15 @@ function UnHookProc(var AOldProc: Pointer): Boolean;
 
 implementation
 
-{$IFDEF CPUX64}
+{$IF Defined(CPUX64) or Defined(CPUARM64)}
+  {$DEFINE CPU_64BIT}
+{$IFEND}
+
+{$IFDEF CPU_64BIT}
   {$DEFINE USELONGJMP}
 {$ENDIF}
+
+{.$DEFINE USEINT3} { Insert INT3 breakpoint into hook stub for debugging }
 
 uses
   Windows;
@@ -90,42 +107,42 @@ type
 
   TJMPCode = packed record
 {$IFDEF USELONGJMP}
-    JMP: Word;
+    JMP: Word;          // $25FF  JMP QWORD PTR [RIP+disp32]
     JmpOffset: Int32;
-    Addr: NativeUInt;
+    Addr: NativeUInt;   // Absolute target for indirect long jump (x64)
 {$ELSE}
-    JMP: Byte;
-    Addr: NativeUInt;
+    JMP: Byte;          // $E9  Near relative JMP
+    Addr: NativeUInt;   // 32-bit signed offset from the next instruction
 {$ENDIF}
   end;
   PJMPCode = ^TJMPCode;
 
   TOldProc = packed record
 {$IFDEF USEINT3}
-    Int3OrNop: Byte;
+    Int3OrNop: Byte;    // $CC INT3 or $90 NOP before backup when USEINT3 is defined
 {$ENDIF}
-    BackCode: array[0..$20 - 1] of Byte;
-    JmpRealFunc: TJMPCode;
-    JmpHookFunc: TJMPCode;
+    BackCode: array[0..$20 - 1] of Byte; // Saved prologue from the hooked function
+    JmpRealFunc: TJMPCode;               // Jump back to original body after prologue
+    JmpHookFunc: TJMPCode;               // Jump to the replacement (hook) function
 
-    BackUpCodeSize: Integer;
-    OldFuncAddr: Pointer;
+    BackUpCodeSize: Integer; // Bytes overwritten at the target entry
+    OldFuncAddr: Pointer;    // Original function entry (for UnHookProc)
   end;
   POldProc = ^TOldProc;
 
   TNewProc = packed record
-    JMP: Byte;
-    Addr: Integer;
+    JMP: Byte;          // $E9  Near relative JMP patched at target entry
+    Addr: Integer;      // Offset to JmpHookFunc inside the trampoline page
   end;
   PNewProc = ^TNewProc;
 
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
 //功能：引入 LDE64 长度反编译引擎 ShellCode
-//参数：
+//参数：无（编译期嵌入的二进制机器码）
 ////////////////////////////////////////////////////////////////////////////////
 const
-{$IFDEF CPUX64}
+{$IFDEF CPU_64BIT}
   {$I 'HookUtils.64.inc'} { from LDE64-x64.rar\LDE64x64.bin }
 {$ELSE}
   {$I 'HookUtils.32.inc'} { from LDE64-x86.rar\LDE64-x86\LDE64.bin }
@@ -134,7 +151,7 @@ const
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
 //功能：LDE64 长度反编译引擎函数定义
-//参数：
+//参数：lpData 指令起始地址；arch 架构标识（0=x86，64=x64）
 //注意：x64 下需要处理 DEP 问题
 ////////////////////////////////////////////////////////////////////////////////
 function LDE(lpData: Pointer; arch: LongWord): NativeUInt;
@@ -145,6 +162,7 @@ var
   P: function (lpData: Pointer; arch: LongWord): NativeUInt; stdcall;
 begin
   D := @defLde64ShellCode;
+  // Ensure embedded shellcode page is executable under DEP (x64)
   if VirtualQuery(D, M, SizeOf(M)) <> 0 then
     if M.Protect <> PAGE_EXECUTE_WRITECOPY then
       VirtualProtect(D, SizeOf(defLde64ShellCode), PAGE_EXECUTE_WRITECOPY, @F);
@@ -155,13 +173,14 @@ end;
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
 //功能：计算需要覆盖的机器指令大小，借助了 LDE64 反汇编引擎以免指令被从中间切开
-//参数：
+//参数：AFunc 目标函数入口地址
+//返回：覆盖字节数（至少 SizeOf(TNewProc)），AFunc=nil 时返回 0
 ////////////////////////////////////////////////////////////////////////////////
 function CalcHookProcSize(AFunc: Pointer): Integer;
 const
   lde_archi_32          = 0;
   lde_archi_64          = 64;
-{$IFDEF CPUX64}
+{$IFDEF CPU_64BIT}
   lde_archi_default     = lde_archi_64;
 {$ELSE}
   lde_archi_default     = lde_archi_32;
@@ -174,9 +193,16 @@ begin
   if AFunc = nil then
     Exit;
   pCode := AFunc;
+  // Accumulate full instruction lengths until the hook stub fits
   while Result < SizeOf(TNewProc) do
   begin
     nLen := LDE(pCode, lde_archi_default);
+    // LDE returns 0 for unrecognized instructions; treat as unhooked target
+    if nLen <= 0 then
+    begin
+      Result := -1;
+      Exit;
+    end;
     Inc(pCode, nLen);
     Inc(Result, nLen);
   end;
@@ -184,15 +210,14 @@ end;
 
 ////////////////////////////////////////////////////////////////////////////////
 //修改：Lsuper 2016.10.01
-//功能：
-//参数：
-//注意：尝试在指定指针 APtr 的正负 2Gb 以内分配内存，32 位肯定是这样的
-//      64 位 JMP 都是相对的，操作数是 32 位整数，所以必须保证新的函数在旧函数
-//      的正负2GB内，否则没法跳转到或者跳转回来
+//功能：在目标地址 ±2 GB 范围内分配可执行内存
+//参数：APtr 参考地址；ASize 申请大小
+//返回：成功返回分配地址，失败返回 nil
+//注意：32/64 位相对 JMP 偏移为 32 位有符号整数，跳板必须在 ±2 GB 内
 ////////////////////////////////////////////////////////////////////////////////
 function TryAllocMem(APtr: Pointer; ASize: LongWord): Pointer;
 const
-{$IFDEF CPUX64}
+{$IFDEF CPU_64BIT}
   defAllocationType     = MEM_COMMIT or MEM_RESERVE or MEM_TOP_DOWN;
 {$ELSE}
   defAllocationType     = MEM_COMMIT or MEM_RESERVE;
@@ -208,6 +233,7 @@ begin
   Result := nil;
 
   GetSystemInfo(sInfo);
+  // Scan only within ±2 GB of the hook target
   if NativeUInt(APtr) <= 2 * GB then
     nMin := 1
   else nMin := NativeUInt(APtr) - 2 * GB;
@@ -219,6 +245,7 @@ begin
     if (VirtualQuery(pbAlloc, mInfo, SizeOf(mInfo)) = 0) then
       Break;
     nGranularity := sInfo.dwAllocationGranularity;
+    // Prefer a free region large enough for the trampoline page
     if ((mInfo.State or MEM_FREE) = MEM_FREE) and (mInfo.RegionSize >= ASize) and (mInfo.RegionSize >= nGranularity) then
     begin
       pbAlloc := PByte(NativeUInt((NativeUInt(pbAlloc) + (nGranularity - 1)) div nGranularity) * nGranularity);
@@ -232,8 +259,9 @@ end;
 
 ////////////////////////////////////////////////////////////////////////////////
 //设计：Lsuper 2016.10.01
-//功能：挂接 API
-//参数：
+//功能：按模块名与导出名挂接 API
+//参数：ATargetModule 模块名；ATargetProc 导出函数名；ANewProc 替换过程；
+//      AOldProc 输出跳板指针（调用原函数前导指令）
 //注意：如果 ATargetModule 没有被 LoadLibrary 下 Hook 会失败，建议先手工 Load
 ////////////////////////////////////////////////////////////////////////////////
 function HookProc(const ATargetModule, ATargetProc: string; ANewProc: Pointer;
@@ -252,6 +280,131 @@ begin
   Result := HookProc(pProc, ANewProc, AOldProc);
 end;
 
+{$IFDEF CPUARM64}
+
+////////////////////////////////////////////////////////////////////////////////
+//设计：Lsuper 2026.06.07
+//功能：挂接原生 ARM64 (EC) 函数
+//参数：ATargetProc：被替换函数；ANewProc：新函数；AOldProc：备份跳板
+//注意：ARM64 指令定长 4 字节，备份固定 cBackCodeSize(16) 字节即可容纳绝对跳转。
+//      跳板内存须为 EC 代码页（AllocArm64Mem），否则原生 ARM64 指令会被当作
+//      x64 模拟执行而崩溃。备份布局复用 TOldProc，使 UnHookProc 可统一处理：
+//        BackCode[0..15]   原函数前 16 字节
+//        BackCode[16..31]  绝对跳转回 ATargetProc + 16
+////////////////////////////////////////////////////////////////////////////////
+function HookProcArm64(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolean;
+  ////////////////////////////////////////////////////////////////////////////////
+  //设计：Lsuper 2026.06.07
+  //功能：分配标记为原生 ARM64 代码的可执行内存（EC 位图置位）
+  //参数：ASize 申请大小
+  //注意：普通 VirtualAlloc 分配的页面默认被视为 x64 代码，原生 ARM64 指令置于其中
+  //      会被模拟器误当作 x64 执行而崩溃。必须通过 VirtualAlloc2 携带
+  //      MEM_EXTENDED_PARAMETER_EC_CODE 标志分配，才会被识别为 ARM64 代码
+  ////////////////////////////////////////////////////////////////////////////////
+  function AllocArm64Mem(ASize: SIZE_T): Pointer;
+  const
+    // MEM_EXTENDED_PARAMETER_EC_CODE
+    cMemEcCode            = $40;
+    // Marks the page as native ARM64 code in the EC bitmap
+    // MemExtendedParameterAttributeFlags
+    cMemAttrFlags         = 5;
+  var
+    par: MEM_EXTENDED_PARAMETER;
+  begin
+    FillChar(par, SizeOf(par), 0);
+    par.TypeAndReserved := cMemAttrFlags;
+    par.ULong64 := cMemEcCode;
+    Result := VirtualAlloc2(0, nil, ASize, MEM_COMMIT or MEM_RESERVE,
+      PAGE_EXECUTE_READWRITE, @par, 1);
+  end;
+type
+  // ARM64 absolute jump: LDR X16, #8 ; BR X16 ; <8-byte target>, 16 bytes total
+  TArm64AbsJmp = packed record
+    Ldr: Cardinal;      // $58000050  LDR X16, [PC, #8]
+    Br: Cardinal;       // $D61F0200  BR X16
+    Addr: UInt64;
+  end;
+  PArm64AbsJmp = ^TArm64AbsJmp;
+const
+  cArm64LdrX16          = $58000050;
+  cArm64BrX16           = $D61F0200;
+  // Fixed 4-byte ARM64 instructions; absolute jump occupies the first 16 bytes
+  cBackCodeSize         = SizeOf(TArm64AbsJmp);
+var
+  oldProc: POldProc;
+  jmpBack, jmpTarget: PArm64AbsJmp;
+  oldProtected, newProtected: DWORD;
+begin
+  Result := False;
+
+  AOldProc := AllocArm64Mem(GPageSize);
+  if AOldProc = nil then
+    Exit;
+
+  oldProc := POldProc(AOldProc);
+  FillChar(oldProc^, SizeOf(TOldProc), 0);
+  oldProc^.BackUpCodeSize := cBackCodeSize;
+  oldProc^.OldFuncAddr := ATargetProc;
+
+  // Save the first 16 bytes of the target, then append an absolute jump back.
+  // AOldProc is the trampoline entry (@BackCode[0]); calling it runs the
+  // Original prologue and then resumes the target at ATargetProc + 16.
+  Move(ATargetProc^, oldProc^.BackCode[0], cBackCodeSize);
+  jmpBack := PArm64AbsJmp(@oldProc^.BackCode[cBackCodeSize]);
+  jmpBack^.Ldr := cArm64LdrX16;
+  jmpBack^.Br := cArm64BrX16;
+  jmpBack^.Addr := UInt64(ATargetProc) + cBackCodeSize;
+
+  // Patch the target entry to jump to the hook function
+  if not VirtualProtect(ATargetProc, cBackCodeSize, PAGE_EXECUTE_READWRITE, oldProtected) then
+  begin
+    VirtualFree(AOldProc, 0, MEM_RELEASE);
+    AOldProc := nil;
+    Exit;
+  end;
+
+  jmpTarget := PArm64AbsJmp(ATargetProc);
+  jmpTarget^.Ldr := cArm64LdrX16;
+  jmpTarget^.Br := cArm64BrX16;
+  jmpTarget^.Addr := UInt64(ANewProc);
+
+  if not VirtualProtect(ATargetProc, cBackCodeSize, oldProtected, newProtected) then
+  begin
+    // Restoring the original protection failed, but the hook is already written
+    // and functional. Continue with cache flush so the patch takes effect.
+    newProtected := oldProtected;
+  end;
+  // Flush instruction cache so patched code is not executed from stale lines
+  FlushInstructionCache(GetCurrentProcess(), ATargetProc, cBackCodeSize);
+  FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
+  Result := True;
+end;
+
+////////////////////////////////////////////////////////////////////////////////
+//设计：Lsuper 2026.06.07
+//功能：判断指定地址是否为原生 ARM64 (EC) 代码
+//参数：APtr 目标地址
+//注意：ARM64EC 进程中系统 DLL 导出多为被模拟的 x64 代码，原生 Delphi 代码为
+//      ARM64。借助 ntdll!RtlIsEcCode 查询 EC 位图区分二者
+////////////////////////////////////////////////////////////////////////////////
+function IsTargetArm64(APtr: Pointer): Boolean;
+var
+  hNtdll: HMODULE;
+  pIsEcCode: function (Addr: Pointer): Boolean; stdcall;
+begin
+  Result := False;
+  hNtdll := GetModuleHandle('ntdll.dll');
+  if hNtdll = 0 then
+    Exit;
+  @pIsEcCode := GetProcAddress(hNtdll, 'RtlIsEcCode');
+  if not Assigned(pIsEcCode) then
+    Exit;
+  // Query the EC code bitmap for the target address
+  Result := pIsEcCode(APtr);
+end;
+
+{$ENDIF}
+
 ////////////////////////////////////////////////////////////////////////////////
 //设计：Lsuper 2016.10.01
 //功能：替换原有过程指针，并保留原有指针
@@ -264,14 +417,15 @@ end;
 ////////////////////////////////////////////////////////////////////////////////
 function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolean;
 
+  // Follow indirect JMP thunks (e.g. Delphi BPL exports) to the real entry point
   procedure FixFunc(MaxDepth: Integer = 10);
   type
     TJmpCode = packed record
-      Code: Word;                 // 间接跳转指定，为 $25FF
-{$IFDEF CPUX64}
-      RelOffset: Int32;           // JMP QWORD PTR [RIP + RelOffset]
+      Code: Word;       // Indirect jump opcode $25FF
+{$IFDEF CPU_64BIT}
+      RelOffset: Int32; // JMP QWORD PTR [RIP + RelOffset]
 {$ELSE}
-      Addr: PPointer;             // JMP DWORD PTR [JMPPtr] 跳转指针地址，指向保存目标地址的指针
+      Addr: PPointer;   // JMP DWORD PTR [Addr]; Points at the target pointer
 {$ENDIF}
     end;
     PJmpCode = ^TJmpCode;
@@ -284,7 +438,8 @@ function HookProc(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): Boolea
       Exit;
     if PJmpCode(ATargetProc)^.Code = csJmp32Code then
     begin
-{$IFDEF CPUX64}
+      // Resolve the pointer stored after the indirect JMP instruction
+{$IFDEF CPU_64BIT}
       P := Pointer(NativeUInt(ATargetProc) + PJmpCode(ATargetProc)^.RelOffset + SizeOf(TJmpCode));
       ATargetProc := P^;
 {$ELSE}
@@ -308,6 +463,15 @@ begin
     Exit;
 
   FixFunc();
+{$IFDEF CPUARM64}
+  // ARM64EC: Native ARM64 targets use absolute jumps; x64 targets (e.g. system
+  // DLL exports) keep the long-jump path below. The emulator handles transitions.
+  if IsTargetArm64(ATargetProc) then
+  begin
+    Result := HookProcArm64(ATargetProc, ANewProc, AOldProc);
+    Exit;
+  end;
+{$ENDIF}
   newProc := PNewProc(ATargetProc);
   backCodeSize := CalcHookProcSize(ATargetProc);
   if backCodeSize < 0 then
@@ -318,7 +482,11 @@ begin
 
   AOldProc := TryAllocMem(ATargetProc, GPageSize);
   if AOldProc = nil then
+  begin
+    // Restore the original page protection before bailing out
+    VirtualProtect(ATargetProc, backCodeSize, oldProtected, newProtected);
     Exit;
+  end;
 
   FillChar(AOldProc^, SizeOf(TOldProc), $90);
   oldProc := POldProc(AOldProc);
@@ -329,6 +497,7 @@ begin
   oldProc.OldFuncAddr := ATargetProc;
   Move(ATargetProc^, oldProc^.BackCode, backCodeSize);
 {$IFDEF USELONGJMP}
+  // Trampoline layout (x64): [saved prologue][JMP to original+size][JMP to hook]
   JmpAfterBackCode := PJMPCode(@oldProc^.BackCode[backCodeSize]);
 
   oldProc^.JmpRealFunc.JMP := $25FF;
@@ -343,13 +512,14 @@ begin
   oldProc^.JmpHookFunc.JmpOffset := 0;
   oldProc^.JmpHookFunc.Addr := NativeUInt(ANewProc);
 {$ELSE}
+  // Trampoline layout (x86): [saved prologue][rel JMP to original+size][rel JMP to hook]
   oldProc^.JmpRealFunc.JMP := $E9;
   oldProc^.JmpRealFunc.Addr := NativeInt(ATargetProc) + backCodeSize - (NativeInt(@oldProc^.JmpRealFunc) + 5);
 
   oldProc^.JmpHookFunc.JMP := $E9;
   oldProc^.JmpHookFunc.Addr := NativeInt(ANewProc) - (NativeInt(@oldProc^.JmpHookFunc) + 5);
 {$ENDIF}
-  // 初始化跳转
+  // Nop-fill overwritten bytes, then install a relative JMP into the trampoline
   FillChar(ATargetProc^, backCodeSize, $90);
 
   newProc^.JMP := $E9;
@@ -357,7 +527,7 @@ begin
 
   if not VirtualProtect(ATargetProc, backCodeSize, oldProtected, newProtected) then
     Exit;
-  // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
+  // Flush instruction cache so patched code is not executed from stale lines
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
   Result := True;
@@ -384,12 +554,13 @@ begin
   if not VirtualProtect(newProc, backCodeSize, PAGE_EXECUTE_READWRITE, oldProtected) then
     Exit;
 
+  // Restore the original prologue bytes saved in the trampoline page
   Move(oldProc^.BackCode, newProc^, oldProc^.BackUpCodeSize);
 
   if not VirtualProtect(newProc, backCodeSize, oldProtected, newProtected) then
     Exit;
   VirtualFree(oldProc, 0, MEM_RELEASE);
-  // 刷新处理器中的指令缓存，以免这部分指令被缓存执行的时候不一致
+  // Flush instruction cache so patched code is not executed from stale lines
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
   AOldProc := nil;
   Result := True;
