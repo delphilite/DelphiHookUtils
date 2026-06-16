@@ -40,27 +40,15 @@
 			<Base>true</Base>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Base)'!=''">
-			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
 			<DCC_UnitSearchPath>..\Source;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
 			<Manifest_File>None</Manifest_File>
-			<VerInfo_Locale>2052</VerInfo_Locale>
-			<DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+			<DCC_Namespace>Winapi;System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
 			<DCC_UsePackage>rtl;dbrtl;bindengine;bindcomp;$(DCC_UsePackage)</DCC_UsePackage>
 			<DCC_DcuOutput>..\Dcu\$(Platform)\$(Config)</DCC_DcuOutput>
 			<DCC_ExeOutput>..\Bin\$(Platform)</DCC_ExeOutput>
-		</PropertyGroup>
-		<PropertyGroup Condition="'$(Base_Win64)'!=''">
-			<DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;$(DCC_Namespace)</DCC_Namespace>
-			<VerInfo_Locale>1033</VerInfo_Locale>
-			<DCC_UsePackage>bindcompvcl;GRC30_R16;vclx;AlphaControls_R16;vclimg;VclSmp;vcl;vcldb;adortl;$(DCC_UsePackage)</DCC_UsePackage>
-		</PropertyGroup>
-		<PropertyGroup Condition="'$(Base_Win32)'!=''">
-			<DCC_UsePackage>bindcompvcl;XLSRWII6_R16;GRC30_R16;tb2k_d16;vclx;SynEdit_R16;AlphaControls_R16;vclimg;PngComponents_R16;VclSmp;vcl;vcldb;adortl;sptbx_d16;$(DCC_UsePackage)</DCC_UsePackage>
 			<VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-			<DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
-			<VerInfo_Locale>1033</VerInfo_Locale>
-			<Manifest_File>$(BDS)\bin\default_app.manifest</Manifest_File>
 			<VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+			<VerInfo_Locale>1033</VerInfo_Locale>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_1)'!=''">
 			<DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
@@ -70,8 +58,6 @@
 			<DCC_RemoteDebug>true</DCC_RemoteDebug>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_1_Win32)'!=''">
-			<VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
-			<VerInfo_Locale>1033</VerInfo_Locale>
 			<DCC_RemoteDebug>false</DCC_RemoteDebug>
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Cfg_2)'!=''">

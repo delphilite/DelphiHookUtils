@@ -1,4 +1,4 @@
-unit MainFrm;
+ï»¿unit MainFrm;
 
 interface
 
@@ -34,7 +34,7 @@ var
 procedure ObjectFreeInstanceCallBack(Self: TObject);
 begin
   if Self <> nil then
-    Log.d('"%s" ÊµÀı [%x] ±»ÊÍ·Å!', [Self.ClassName, NativeInt(Self)]);
+    Log.d('"%s" å®ä¾‹ [%x] è¢«é‡Šæ”¾!', [Self.ClassName, NativeInt(Self)]);
   ObjectFreeInstanceNext(Self);
 end;
 
@@ -52,11 +52,11 @@ begin
     if not Assigned(ObjectFreeInstanceNext) then
     begin
       HookProc(@TObject.FreeInstance, @ObjectFreeInstanceCallBack, @ObjectFreeInstanceNext);
-      ShowMessage('ÔÚÄãµÄ EventLog ´°¿ÚÀï¿´¿´ÓĞÄÄĞ©¶ÔÏó±»ÊÍ·ÅÁË :-)');
+      ShowMessage('åœ¨ä½ çš„ EventLog çª—å£é‡Œçœ‹çœ‹æœ‰å“ªäº›å¯¹è±¡è¢«é‡Šæ”¾äº† :-)');
     end
     else
     begin
-      ShowMessage('¹³¹ıÁË');
+      ShowMessage('é’©è¿‡äº†');
     end;
   end
   else
