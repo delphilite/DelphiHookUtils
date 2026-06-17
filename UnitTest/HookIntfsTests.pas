@@ -15,7 +15,7 @@ unit HookIntfsTests;
 interface
 
 uses
-  System.SysUtils, TestFramework, HookIntfs;
+  SysUtils, TestFramework, HookIntfs;
 
 type
   THookIntfsTest = class(TTestCase)
@@ -36,7 +36,7 @@ type
 implementation
 
 uses
-  Winapi.ActiveX, Winapi.ShlObj, Winapi.Windows, System.Win.ComObj;
+  ActiveX, ShlObj, Windows, ComObj;
 
 const
   cShellLinkSetPathIndex = 20;

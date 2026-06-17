@@ -326,6 +326,13 @@ begin
   // call time), so redirect the vtable slot instead; every cross-architecture
   // transition then happens at an indirect-call boundary the emulator handles.
   // Native x86/x64 (and native ARM64EC) targets keep the inline HookProc path.
+  //
+  // The architecture decision uses the resolved method entry P (past any Delphi
+  // adjustor thunk), while HookInterfaceVTable saves/restores the raw vtable slot
+  // value (the thunk itself). This is intentional: the slot value is what must be
+  // restored on unhook, and resolving past the thunk gives the more accurate
+  // architecture of the code that actually runs. A thunk and its target residing
+  // in different-architecture regions is not observed in practice for COM here.
   if NeedVTableHook(P) then
     Result := HookInterfaceVTable(AInterface, AMethodIndex, ANewProc, AOldProc)
   else Result := HookUtils.HookProc(P, ANewProc, AOldProc);

@@ -13,16 +13,6 @@
 		<PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
 			<Base>true</Base>
 		</PropertyGroup>
-		<PropertyGroup Condition="('$(Platform)'=='Win64' and '$(Base)'=='true') or '$(Base_Win64)'!=''">
-			<Base_Win64>true</Base_Win64>
-			<CfgParent>Base</CfgParent>
-			<Base>true</Base>
-		</PropertyGroup>
-		<PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
-			<Base_Win32>true</Base_Win32>
-			<CfgParent>Base</CfgParent>
-			<Base>true</Base>
-		</PropertyGroup>
 		<PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_1)'!=''">
 			<Cfg_1>true</Cfg_1>
 			<CfgParent>Base</CfgParent>
@@ -42,7 +32,7 @@
 		<PropertyGroup Condition="'$(Base)'!=''">
 			<DCC_UnitSearchPath>..\Source;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
 			<Manifest_File>None</Manifest_File>
-			<DCC_Namespace>Winapi;System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
+			<DCC_Namespace>Winapi;System;System.Win;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
 			<DCC_UsePackage>rtl;dbrtl;bindengine;bindcomp;$(DCC_UsePackage)</DCC_UsePackage>
 			<DCC_DcuOutput>..\Dcu\$(Platform)\$(Config)</DCC_DcuOutput>
 			<DCC_ExeOutput>..\Bin\$(Platform)</DCC_ExeOutput>
@@ -70,10 +60,7 @@
 			<DelphiCompile Include="$(MainSource)">
 				<MainSource>MainSource</MainSource>
 			</DelphiCompile>
-			<DCCReference Include="HookIntfsTests.pas">
-				<Form>Form1</Form>
-				<FormType>dfm</FormType>
-			</DCCReference>
+			<DCCReference Include="HookIntfsTests.pas"/>
 			<DCCReference Include="HookUtilsTests.pas"/>
 			<BuildConfiguration Include="Release">
 				<Key>Cfg_2</Key>

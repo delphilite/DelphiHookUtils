@@ -19,7 +19,6 @@
 {    - 原生 ARM64 目标：采用 LDR X16/BR X16 绝对跳转，跳板内存须经        }
 {      VirtualAlloc2 携带 MEM_EXTENDED_PARAMETER_EC_CODE 标记为 EC 代码   }
 {    - x64 目标（系统 DLL 导出等）：沿用 64 位长跳转方案                  }
-
 {                                                                         }
 {   限制：                                                                }
 {                                                                         }
@@ -92,7 +91,16 @@ uses
   Windows;
 
 const
-  GPageSize: Integer    = 4096;
+  // Trampoline saved-prologue buffer size. Worst-case overwrite is 4 bytes plus a
+  // single 15-byte instruction = 19 bytes (CalcHookProcSize stops at the first
+  // instruction boundary >= SizeOf(TNewProc)). The x64 trampoline then appends a
+  // TJMPCode (14 bytes) at that offset, needing 19 + 14 = 33 bytes; 48 leaves margin
+  // and keeps the previous behaviour for every realistic prologue.
+  conBackCodeSize       = $30;
+
+  // Trampoline page size. Defaults to 4 KiB and is corrected to the real OS page
+  // size at unit initialization (see InitPageSize) rather than assuming 4 KiB.
+  conSysPageSize        = 4096;
 
 type
 {$IFNDEF FPC} {$IF CompilerVersion < 23}
@@ -115,9 +123,9 @@ type
 {$IFDEF USEINT3}
     Int3OrNop: Byte;    // $CC INT3 or $90 NOP before backup when USEINT3 is defined
 {$ENDIF}
-    BackCode: array[0..$20 - 1] of Byte; // Saved prologue from the hooked function
-    JmpRealFunc: TJMPCode;               // Jump back to original body after prologue
-    JmpHookFunc: TJMPCode;               // Jump to the replacement (hook) function
+    BackCode: array[0..conBackCodeSize - 1] of Byte; // Saved prologue from the hooked function
+    JmpRealFunc: TJMPCode;   // Jump back to original body after prologue
+    JmpHookFunc: TJMPCode;   // Jump to the replacement (hook) function
 
     BackUpCodeSize: Integer; // Bytes overwritten at the target entry
     OldFuncAddr: Pointer;    // Original function entry (for UnHookProc)
@@ -311,6 +319,32 @@ function HookProcArm64(ATargetProc, ANewProc: Pointer; out AOldProc: Pointer): B
     Result := VirtualAlloc2(0, nil, ASize, MEM_COMMIT or MEM_RESERVE,
       PAGE_EXECUTE_READWRITE, @par, 1);
   end;
+  ////////////////////////////////////////////////////////////////////////////
+  //设计：Lsuper 2026.06.17
+  //功能：判断一条 ARM64 指令是否为 PC 相对编码
+  //参数：AInstr 4 字节定长指令
+  //注意：备份的前导指令会被搬到跳板另一地址执行，PC 相对指令（ADR/ADRP、
+  //      B/BL/B.cond、CBZ/CBNZ、TBZ/TBNZ、LDR/LDRSW literal）的立即数是相对
+  //      原 PC 编码的，搬移后基址改变又未做重定位，语义即被破坏。命中则拒绝挂钩。
+  ////////////////////////////////////////////////////////////////////////////
+  function IsArm64PcRelInstr(AInstr: Cardinal): Boolean;
+  begin
+    Result :=
+      // ADR / ADRP
+      ((AInstr and $1F000000) = $10000000) or
+      // B (unconditional branch)
+      ((AInstr and $FC000000) = $14000000) or
+      // BL (branch with link)
+      ((AInstr and $FC000000) = $94000000) or
+      // B.cond (conditional branch)
+      ((AInstr and $FF000010) = $54000000) or
+      // CBZ / CBNZ
+      ((AInstr and $7E000000) = $34000000) or
+      // TBZ / TBNZ
+      ((AInstr and $7E000000) = $36000000) or
+      // LDR / LDRSW (literal, incl. SIMD&FP literal)
+      ((AInstr and $3B000000) = $18000000);
+  end;
 type
   // ARM64 absolute jump: LDR X16, #8 ; BR X16 ; <8-byte target>, 16 bytes total
   TArm64AbsJmp = packed record
@@ -328,10 +362,20 @@ var
   oldProc: POldProc;
   jmpBack, jmpTarget: PArm64AbsJmp;
   oldProtected, newProtected: DWORD;
+  prologue: PCardinal;
+  i: Integer;
 begin
   Result := False;
 
-  AOldProc := AllocArm64Mem(GPageSize);
+  // The first 16 bytes (4 instructions) are relocated to the trampoline and
+  // executed from there. Refuse to hook if any of them is PC-relative, as
+  // moving such an instruction without fixing its immediate corrupts the target.
+  prologue := PCardinal(ATargetProc);
+  for i := 0 to (cBackCodeSize div SizeOf(Cardinal)) - 1 do
+    if IsArm64PcRelInstr(PCardinal(NativeUInt(prologue) + NativeUInt(i) * SizeOf(Cardinal))^) then
+      Exit;
+
+  AOldProc := AllocArm64Mem(conSysPageSize);
   if AOldProc = nil then
     Exit;
 
@@ -370,7 +414,7 @@ begin
   end;
   // Flush instruction cache so patched code is not executed from stale lines
   FlushInstructionCache(GetCurrentProcess(), ATargetProc, cBackCodeSize);
-  FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
+  FlushInstructionCache(GetCurrentProcess(), oldProc, conSysPageSize);
   Result := True;
 end;
 
@@ -470,11 +514,16 @@ begin
   backCodeSize := CalcHookProcSize(ATargetProc);
   if backCodeSize < 0 then
     Exit;
+  // The trampoline stores the saved prologue followed by a jump appended at
+  // offset backCodeSize. Refuse to hook if the two would not fit in BackCode,
+  // rather than overflowing into the adjacent trampoline fields.
+  if backCodeSize + SizeOf(oldProc^.JmpRealFunc) > conBackCodeSize then
+    Exit;
 
   if not VirtualProtect(ATargetProc, backCodeSize, PAGE_EXECUTE_READWRITE, oldProtected) then
     Exit;
 
-  AOldProc := TryAllocMem(ATargetProc, GPageSize);
+  AOldProc := TryAllocMem(ATargetProc, conSysPageSize);
   if AOldProc = nil then
   begin
     // Restore the original page protection before bailing out
@@ -491,7 +540,12 @@ begin
   oldProc.OldFuncAddr := ATargetProc;
   Move(ATargetProc^, oldProc^.BackCode, backCodeSize);
 {$IFDEF USELONGJMP}
-  // Trampoline layout (x64): [saved prologue][JMP to original+size][JMP to hook]
+  // Trampoline layout (x64): [saved prologue][JMP to original+size][JMP to hook].
+  // The return-to-original jump is written at offset backCodeSize (JmpAfterBackCode);
+  // execution reaches it by falling through the saved prologue, so that is the jump
+  // actually taken on this path. oldProc^.JmpRealFunc sits at the fixed struct offset
+  // and is only used by the x86 path below (reached via NOP slide); here it is kept
+  // populated for layout symmetry but is not on the executed path.
   JmpAfterBackCode := PJMPCode(@oldProc^.BackCode[backCodeSize]);
 
   oldProc^.JmpRealFunc.JMP := $25FF;
@@ -506,7 +560,10 @@ begin
   oldProc^.JmpHookFunc.JmpOffset := 0;
   oldProc^.JmpHookFunc.Addr := NativeUInt(ANewProc);
 {$ELSE}
-  // Trampoline layout (x86): [saved prologue][rel JMP to original+size][rel JMP to hook]
+  // Trampoline layout (x86): [saved prologue][rel JMP to original+size][rel JMP to hook].
+  // Unlike the x64 path, the return jump is JmpRealFunc at the fixed struct offset:
+  // the overwritten target bytes are NOP-filled, so after running the saved prologue
+  // execution slides through the NOPs to JmpRealFunc. JmpAfterBackCode is not used here.
   oldProc^.JmpRealFunc.JMP := $E9;
   oldProc^.JmpRealFunc.Addr := NativeInt(ATargetProc) + backCodeSize - (NativeInt(@oldProc^.JmpRealFunc) + 5);
 
@@ -519,11 +576,17 @@ begin
   newProc^.JMP := $E9;
   newProc^.Addr := NativeInt(@oldProc^.JmpHookFunc) - (NativeInt(@newProc^.JMP) + 5);
 
+  // Restoring the original protection failed, but the patch is already written
+  // and functional. Returning False here would strand a live hook with a
+  // dangling AOldProc and a leaked trampoline, since the caller would neither
+  // use AOldProc nor call UnHookProc. Treat it as non-fatal and continue with
+  // the cache flush, matching the ARM64 path (see HookProcArm64).
   if not VirtualProtect(ATargetProc, backCodeSize, oldProtected, newProtected) then
-    Exit;
+    newProtected := oldProtected;
+
   // Flush instruction cache so patched code is not executed from stale lines
   FlushInstructionCache(GetCurrentProcess(), newProc, backCodeSize);
-  FlushInstructionCache(GetCurrentProcess(), oldProc, GPageSize);
+  FlushInstructionCache(GetCurrentProcess(), oldProc, conSysPageSize);
   Result := True;
 end;
 
